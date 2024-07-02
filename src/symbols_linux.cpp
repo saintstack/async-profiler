@@ -268,7 +268,7 @@ ElfProgramHeader* ElfParser::findProgramHeader(uint32_t type) {
 // In /proc/PID/maps or printing out async-profiler loading symbols, you see stuff like this:
 // 'Parsing /tmp/fdb-c-7.1.38.so-mMzfiP (deleted)'. Below we 'help' the process by loading
 // a symbols file anytime we come across the below TMP_FDBC_PREFIX.
-static const char* TMP_FDBC_PREFIX = "/tmp/fdb-c-7.1.38-";
+static const char* TMP_FDBC_PREFIX = "/tmp/fdb-c-7.1.38.so-";
 static int TMP_FDBC_PREFIX_LEN = strlen(TMP_FDBC_PREFIX);
 // This is the lib with symbols to load whenever we see TMP_FDBC_PREFIX.
 static const char* DEBUG_FDBC = "/usr/lib/debug/.build-id/6a/7b2ae87175c3a2377361c081a7b3c42a2b3632.debug";
@@ -278,6 +278,7 @@ bool ElfParser::parseFile(CodeCache* cc, const char* base, const char* file_name
     const char *fn = (strlen(file_name) < TMP_FDBC_PREFIX_LEN || strncmp(file_name, TMP_FDBC_PREFIX, TMP_FDBC_PREFIX_LEN) != 0)? file_name: DEBUG_FDBC;
     int fd = open(fn, O_RDONLY);
     if (fd == -1) {
+        fprintf(stderr, "Failed open of %s\n", fn);
         return false;
     }
 
