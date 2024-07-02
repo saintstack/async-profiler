@@ -262,8 +262,21 @@ ElfProgramHeader* ElfParser::findProgramHeader(uint32_t type) {
     return NULL;
 }
 
+// fdbclient undoes libfdb_c.so in /tmp dir and then after loading it deletes
+// it. This frustrates our being able to find symbols even if we've loaded them
+// /usr/lib/debug/.build-id/.  In maps or printing out async-profiler loading
+// symbols, you see stuff like this:
+// Parsing /tmp/fdb-c-7.1.38.so-mMzfiP (deleted)
+// Whenever we come across a lib that has the below prefix replace it w/ the debug lib reference.
+static const char* TMP_FDBC_PREFIX = "/tmp/fdb-c-7.1.38-";
+static int TMP_FDBC_PREFIX_LEN = strlen(TMP_FDBC_PREFIX);
+// This is the TMP_FDBC_PREFIX lib but w/ symbols.
+static const char* DEBUG_FDBC = "/usr/lib/debug/.build-id/6a/7b2ae87175c3a2377361c081a7b3c42a2b3632.debug";
+
 bool ElfParser::parseFile(CodeCache* cc, const char* base, const char* file_name, bool use_debug) {
-    int fd = open(file_name, O_RDONLY);
+    fprintf(stderr, "Parsing %s\n", file_name);
+    const char *fn = (strlen(file_name) < TMP_FDBC_PREFIX_LEN || strncmp(file_name, TMP_FDBC_PREFIX, TMP_FDBC_PREFIX_LEN) != 0)? file_name: DEBUG_FDBC;
+    int fd = open(fn, O_RDONLY);
     if (fd == -1) {
         return false;
     }
@@ -273,11 +286,12 @@ bool ElfParser::parseFile(CodeCache* cc, const char* base, const char* file_name
     close(fd);
 
     if (addr == MAP_FAILED) {
-        Log::warn("Could not parse symbols from %s: %s", file_name, strerror(errno));
+        Log::warn("Could not parse symbols from %s: %s", fn, strerror(errno));
     } else {
-        ElfParser elf(cc, base, addr, file_name, false);
+        ElfParser elf(cc, base, addr, fn, false);
         if (elf.validHeader()) {
             elf.loadSymbols(use_debug);
+            fprintf(stderr, "Loaded %s %b\n", fn, use_debug);
         }
         munmap(addr, length);
     }
